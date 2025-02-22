@@ -1,127 +1,69 @@
-class AdversarialTrainer:
-    def __init__(self, model, optimizer, attack_fn, device='cuda'):
+# src/training/base_trainer.py
+import torch
+from hydra.utils import instantiate
+
+class BaseTrainer:
+    def __init__(self, model, optimizer, scheduler, device):
         self.model = model.to(device)
         self.optimizer = optimizer
-        self.attack_fn = attack_fn
+        self.scheduler = scheduler
         self.device = device
-    
-    
-    def train_epoch(loader, model, opt, loss_fn):
-    """Standard training/evaluation epoch over the dataset"""
-    model.train()
-    total_loss, total_err = 0.,0.
-    for X,y in loader:
-        X,y = X.to(device), y.to(device)
-        yp = model(X)
-        loss = loss_fn(model, X, y)
-        opt.zero_grad()
-        loss.backward()
-        opt.step()
 
-        total_err += (yp.max(dim=1)[1] != y).sum().item()
-        total_loss += loss.item() * X.shape[0]
-    return total_err / len(loader.dataset), total_loss / len(loader.dataset)
-
-    @torch.no_grad()
-    def eval_epoch(loader, model, loss_fn):
-        """Standard training/evaluation epoch over the dataset"""
-        model.eval()
-        total_loss, total_err = 0.,0.
-        for X,y in loader:
-            X,y = X.to(device), y.to(device)
-            yp = model(X)
-            loss = loss_fn(model, X, y)
-            total_err += (yp.max(dim=1)[1] != y).sum().item()
-            total_loss += loss.item() * X.shape[0]
-        return total_err / len(loader.dataset), total_loss / len(loader.dataset)
-
-    def train_epoch_adversarial(loader, model, attack, opt, loss_fn, **kwargs):
-        """Adversarial training/evaluation epoch over the dataset"""
-        model.train()
-        total_loss, total_err = 0.,0.
-        for X,y in loader:
-            X,y = X.to(device), y.to(device)
-            delta = attack(model, X, y, **kwargs)
-            yp = model(X+delta)
-            loss = loss_fn(model, X, y, delta)
-            opt.zero_grad()
-            loss.backward()
-            opt.step()
-
-            total_err += (yp.max(dim=1)[1] != y).sum().item()
-            total_loss += loss.item() * X.shape[0]
-        return total_err / len(loader.dataset), total_loss / len(loader.dataset)
-
-    def eval_epoch_adversarial(loader, model, attack, loss_fn, **kwargs):
-        """Adversarial training/evaluation epoch over the dataset"""
-        model.eval()  # Set the model to evaluation mode
-        total_loss, total_err = 0.0, 0.0
-
+    def train_epoch(self, loader, loss_fn, attack_fn=None, awp=None, **kwargs):
+        """Generic training epoch."""
+        self.model.train() # Ensure model is in training mode
+        total_loss, total_err = 0., 0.
         for X, y in loader:
-            X, y = X.to(device), y.to(device)
+            X, y = X.to(self.device), y.to(self.device)
 
-            # Compute adversarial perturbations (requires gradients)
-            with torch.enable_grad():
-                delta = attack(model, X, y, **kwargs)
+            # 1. Attack (if applicable)
+            if attack_fn:
+                with torch.enable_grad():  # Crucial for attack generation!
+                    delta = instantiate(attack_fn, model=self.model, X=X, y=y, **kwargs)
+                X_adv = X + delta
+            else:
+                X_adv = X  # Use clean examples if no attack
 
-            # Evaluate the model on adversarial examples without gradients
-            with torch.no_grad():
-                yp = model(X + delta)
-                loss = loss_fn(model, X, y, delta)
+            # 2. Perturb Weights (if AWP is applied)
+            if awp:
+                awp.attack_backward(X, y) #Awp attack before forward pass
 
-                total_err += (yp.max(dim=1)[1] != y).sum().item()
-                total_loss += loss.item() * X.shape[0]
+            # 3. Forward Pass
+            yp = self.model(X_adv)
 
-        return total_err / len(loader.dataset), total_loss / len(loader.dataset)
+            # 4. Calculate Loss
+            loss = loss_fn(model=self.model, X=X, y=y, yp=yp, attack_fn=attack_fn, **kwargs) # Pass yp
 
-    def train_epoch_rs(loader, model, opt, loss_fn, sigma=0.25):
-        """Training epoch with Gaussian noise over the dataset for Randomized Smoothing"""
-        model.train()
-        total_loss, total_err = 0.,0.
-        for X,y in loader:
-            X,y = X.to(device), y.to(device)
-            yp = model(X + torch.randn_like(X) * sigma) # Add Gaussian noise
-            loss = loss_fn(model, X, y)
-            opt.zero_grad()
+            # 5. Backward Pass and Optimization
+            self.optimizer.zero_grad()
             loss.backward()
-            opt.step()
+            self.optimizer.step()
 
             total_err += (yp.max(dim=1)[1] != y).sum().item()
             total_loss += loss.item() * X.shape[0]
+
+        if self.scheduler:
+            self.scheduler.step()
+
         return total_err / len(loader.dataset), total_loss / len(loader.dataset)
 
     @torch.no_grad()
-    def eval_epoch_rs(loader, model, loss_fn, sigma=0.25):
-        """Standard training/evaluation epoch over the dataset"""
-        model.eval()
-        total_loss, total_err = 0.,0.
-        for X,y in loader:
-            X,y = X.to(device), y.to(device)
-            yp = model(X + torch.randn_like(X) * sigma)
-            loss = loss_fn(model, X, y)
-            total_err += (yp.max(dim=1)[1] != y).sum().item()
-            total_loss += loss.item() * X.shape[0]
-        return total_err / len(loader.dataset), total_loss / len(loader.dataset)
+    def eval_epoch(self, loader, loss_fn, attack_fn=None, **kwargs):
+        """Generic evaluation epoch."""
+        self.model.eval() # Ensure model is in evaluation mode
+        total_loss, total_err = 0., 0.
+        for X, y in loader:
+            X, y = X.to(self.device), y.to(self.device)
 
-    def train_epoch_awp(loader, model, attack, opt, loss_fn, awp, **kwargs):
-        """Adversarial Weight Perturbation training/evaluation epoch over the dataset"""
-        model.train()
-        total_loss, total_err = 0.,0.
-        for X,y in loader:
-            X,y = X.to(device), y.to(device)
+            if attack_fn:
+                 delta = instantiate(attack_fn, model=self.model, X=X, y=y, **kwargs)
+                 yp = self.model(X + delta)
 
-            #Perform AWP attack before forwad pass
-            awp.attack_backward(X, y) # Apply perturbation
+            else:
+                yp = self.model(X)
 
-            delta = attack(model, X, y, **kwargs)
-            yp = model(X+delta)
-            loss = loss_fn(model, X, y, delta)
-
-            opt.zero_grad()
-            loss.backward()
-            opt.step()
+            loss = loss_fn(model=self.model, X=X, y=y, yp=yp, attack_fn=attack_fn, **kwargs) # Pass yp
 
             total_err += (yp.max(dim=1)[1] != y).sum().item()
             total_loss += loss.item() * X.shape[0]
-
         return total_err / len(loader.dataset), total_loss / len(loader.dataset)

@@ -1,0 +1,4 @@
+_target_: src.attacks.attacks.pgd_linf
+epsilon: 0.0314
+num_iter: 10
+randomize: True

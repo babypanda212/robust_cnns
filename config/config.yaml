@@ -1,0 +1,9 @@
+defaults:
+  - data: cifar10
+  - model: resnet18
+  - optimizer: adam
+  - scheduler: cosine  # Example scheduler
+  - training: adversarial
+  - loss: cross_entropy
+  - _self_ # Keep this at the end
+seed: 42

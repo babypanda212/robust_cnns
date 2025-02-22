@@ -1,0 +1,5 @@
+# config/method/trades.yaml
+
+trainer_class: src.training.methods.trades.TRADESTrainer
+loss: src.training.losses.trades_loss
+attack: src.attacks.attacks.pgd_linf_trades

@@ -1,0 +1,6 @@
+# config/model/resnet18.yaml
+_target_: src.models.resnet18.get_resnet18
+pretrained: False # Set to True if you want torchvision pretrained weights
+num_classes: 10
+# Optional: specify the path to your pretrained weights
+pretrained_weights: "pretrained/resnet18.pt"  # Relative path

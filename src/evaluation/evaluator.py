@@ -5,6 +5,8 @@ from typing import Dict, Tuple
 from .metrics import RobustnessMetrics
 from .attacks import AttackEvaluator
 import logging
+# src/evaluation/evaluator.py
+from src.data.loader import create_cifar10_loaders, get_device # Import
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +27,12 @@ class ModelEvaluator:
         model.load_state_dict(torch.load(model_path))
         return model.to(self.config['device']).eval()
 
-    def evaluate_model(self, model_path: Path, 
-                      dataloader: DataLoader) -> Dict[str, float]:
+    def evaluate_model(self, model_path: Path) -> Dict[str, float]:
         """Full evaluation pipeline"""
         model = self.load_model(model_path)
-        
+        device = get_device()
+        dataloader_train, dataloader_val, dataloader_test = create_cifar10_loaders()
+
         results = {}
         results['clean_acc'] = self.metrics.calculate_clean_accuracy(model, dataloader)
         

@@ -1,6 +1,13 @@
+# src/training/methods/weight_averaging.py
 
-model_ema = torch.optim.swa_utils.AveragedModel(model_adv, multi_avg_fn=torch.optim.swa_utils.get_ema_multi_avg_fn(0.9))
+from torch.optim.swa_utils import AveragedModel
 
-model_adv = model_adv.to(device)
-model_ema = model_ema.to(device)
+class WeightAveragingTrainer:
+    def __init__(self, model_adv, optimizer):
+        self.model_adv = model_adv
+        self.optimizer = optimizer
+        self.model_ema = AveragedModel(model_adv)
 
+    def update_ema(self):
+        """Update EMA model parameters."""
+        self.model_ema.update_parameters(self.model_adv)
