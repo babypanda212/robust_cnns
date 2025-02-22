@@ -1,11 +1,5 @@
-import typer
-from .training.base_trainer import AdversarialTrainer
+# src/training/__main__.py
+from src.training.train import main
 
-app = typer.Typer()
-
-@app.command()
-def train(config_path: str = "config.yaml"):
-    """Main training entry point"""
-    # Load config, initialize components, and start training
-    trainer = AdversarialTrainer(config_path)
-    trainer.train()
+if __name__ == "__main__":
+    main()

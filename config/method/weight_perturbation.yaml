@@ -1,0 +1,2 @@
+_target_: src.training.methods.weight_perturbation.AWP
+epsilon: 0.1

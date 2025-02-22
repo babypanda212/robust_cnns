@@ -5,5 +5,27 @@ defaults:
   - scheduler: cosine  # Example scheduler
   - training: adversarial
   - loss: cross_entropy
+  - method: weight_perturbation
+  - attack: pgd
+  - hydra/sweeper: optuna
+  - hydra/launcher: basic
   - _self_ # Keep this at the end
+
 seed: 42
+
+hydra:
+  sweeper:
+    optuna:
+      n_trials: 100  # Number of trials
+      direction: minimize  # Optimization direction (minimize or maximize)
+
+parameters:
+  optimizer.lr: interval(1e-5, 1e-1)  # Learning rate search space
+  training.epochs: choice(50, 100, 150)  # Number of epochs search space
+  attack.epsilon: interval(0.1, 0.5)  # Epsilon search space for attack
+
+training:
+  epochs: 100
+  patience: 10
+  checkpoint_path: "outputs/best_model.pt"
+  sigma: 0

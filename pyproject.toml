@@ -7,13 +7,11 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.12"
-torch = "^2.5.1"
-torchvision = "^0.20.1"
+torch = "2.6.0"  # Compatible version
+torchvision = "0.21.0"  # Compatible version
 autoattack = {git = "https://github.com/fra31/auto-attack"}
 statsmodels = "^0.14.4"
-numpy = "^1.26.4"
-
-
+numpy = "^2.2.3"
 
 [build-system]
 requires = ["poetry-core"]
